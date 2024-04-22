@@ -1,0 +1,48 @@
+# Node.js
+node_modules/
+npm-debug.log
+
+# React
+/build
+/.pnp
+.pnp.js
+
+# FastAPI
+/__pycache__/
+/.mypy_cache/
+/.pytest_cache/
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log
+
+# Environment variables
+#.env
+.env.local
+.env.*.local
+
+# Cache and compiled files
+*.cache
+*.log*
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+__pycache__/
+*.pyc
+
+# Dependency directories
+bin/
+venv/
+env/
+.env/
+
+# Misc
+.DS_Store
+Thumbs.db
+
