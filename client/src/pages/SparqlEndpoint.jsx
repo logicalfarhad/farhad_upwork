@@ -1,25 +1,38 @@
-import React, { useState } from 'react';
-import LeafletMap from './LeafletMap';
+import React, { useState, useEffect } from 'react';
 import { Container, Typography, Button, Card, CardContent, TextareaAutosize, MenuItem, Select, FormControl, InputLabel, CircularProgress } from '@material-ui/core';
-import { UnControlled as CodeMirror } from 'react-codemirror2'
+import ResponseTable from './ResponseTable';
+import LeafletMap from './LeafletMap';
+import PredicateDialog from './PredicateDialog'; // Import the PredicateDialog component
+//import { fetchAddress } from './utils'; // Import any utility function you need
 
-let defaultSparqlQuery = `PREFIX geo: <http://www.w3.org/2003/01/geo/wgs84_pos#>
+const defaultSparqlQuery = `PREFIX geo:<http://www.w3.org/2003/01/geo/wgs84_pos#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> 
+PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX geom:<http://www.semanticweb.org/hn/geom#>
+SELECT ?subject ?predicate ?object
+ WHERE { ?subject ?predicate ?object .
+ FILTER (?subject = geom:Lower_Station_Street) }`;
 
-SELECT ?lat ?long
-WHERE {
-  ?place geo:lat ?lat .
-  ?place geo:long ?long .
-} LIMIT 10`;
-
-const API_ENDPOINT = process.env.REACT_APP_BACKEND_ENDPOINT_URL
-const SPARQL_ENDPOINT = process.env.REACT_APP_SPARQL_ENDPOINT_URL
+const API_ENDPOINT = process.env.REACT_APP_BACKEND_ENDPOINT_URL;
+const SPARQL_ENDPOINT = process.env.REACT_APP_SPARQL_ENDPOINT_URL;
+const GEOM_PREFIX = 'geom:';
 
 const SparqlEndpoint = () => {
-
-    const [coordinates, setCoordinates] = useState([]);
     const [sparqlQuery, setSparqlQuery] = useState(defaultSparqlQuery);
     const [selectedUrl, setSelectedUrl] = useState('');
     const [loading, setLoading] = useState(false);
+    const [response, setResponse] = useState(null);
+    const [coordinates, setCoordinates] = useState([]);
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [dialogContent, setDialogContent] = useState([]);
+    const [selectedPredicate, setSelectedPredicate] = useState('');
+    useEffect(() => {
+        if (!API_ENDPOINT || !SPARQL_ENDPOINT) {
+            console.error("Backend or SPARQL endpoint not defined.");
+            return;
+        }
+    }, []);
 
     const getAddress = async (latitude, longitude) => {
         try {
@@ -36,45 +49,165 @@ const SparqlEndpoint = () => {
         }
     };
 
-    const handleButtonClick = async () => {
+    const extractGeomName = (query) => {
+        const lines = query.split('\n'); // Split the query into lines
+        let geomName;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim().startsWith('FILTER')) {
+                const filterLine = lines[i].trim();
+                const geomIndex = filterLine.indexOf('geom:') + 5; // Adding 5 to skip 'geom:'
+                const endOfGeomName = filterLine.indexOf(')', geomIndex); // Find the end of geom name
+                if (geomIndex !== -1 && endOfGeomName !== -1) {
+                    geomName = filterLine.substring(geomIndex, endOfGeomName).trim(); // Extract geom name
+                    break;
+                }
+            }
+        }
+        return geomName;
+    }
+
+    // Inside handlePredicateClick
+    const handlePredicateClick = async (predicate) => {
         try {
-            coordinates.length = 0
-            setLoading(true); // Start loading
+            setLoading(true);
+            const predicateName = predicate.split('#')[1];
+            const selectSub = extractGeomName(defaultSparqlQuery);
+            setSelectedPredicate(selectSub);
+            const newSparqlQuery = defaultSparqlQuery.replace(selectSub, predicateName);
+            console.log(newSparqlQuery)
             const response = await fetch(`${API_ENDPOINT}/api`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    sparqlQuery: sparqlQuery,
-                    fusekiUrl: selectedUrl
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sparqlQuery: newSparqlQuery, fusekiUrl: selectedUrl }),
             });
+
             if (!response.ok) {
                 throw new Error('Failed to fetch coordinates');
             }
-            const data = await response.json();
-            const coords = [];
-            const uniqueCoords = new Set(); // Use a Set to store unique coordinates
-            for (const loc of data.results.bindings) {
-                const lat = parseFloat(loc.lat.value);
-                const long = parseFloat(loc.long.value);
-                const address = await getAddress(lat, long);
-                // Generate a unique key combining latitude and longitude
-                const key = `${lat}-${long}`;
-                // Check if the key is already in the set
+
+            const newResponseData = await response.json();
+            // Set dialogContent to the actual predicate details
+            setDialogContent(newResponseData.results.bindings);
+            setSelectedPredicate(`${GEOM_PREFIX}${predicateName}`);
+            setDialogOpen(true);
+        } catch (error) {
+            console.error('Error:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+   const handleObjectClick = async (object) => {
+    console.log('Object clicked:', object);
+
+    try {
+        setLoading(true);
+
+        const predicateName = object.split('#')[1];
+        const selectSub = extractGeomName(defaultSparqlQuery);
+        console.log(predicateName);
+        console.log(selectSub);
+
+        const newSparqlQuery = defaultSparqlQuery.replace(selectSub, predicateName);
+        setSparqlQuery(newSparqlQuery);
+        console.log('Updated SPARQL query:', newSparqlQuery);
+
+        const response = await fetch(`${API_ENDPOINT}/api`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sparqlQuery: newSparqlQuery, fusekiUrl: selectedUrl }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch coordinates');
+        }
+
+        const responseData = await response.json();
+        setResponse(responseData);
+
+        const coords = [];
+        const uniqueCoords = new Set();
+        let latitude = null;
+        let longitude = null;
+        let address = null;
+
+        for (const loc of responseData.results.bindings) {
+            if (loc.predicate.value === 'http://www.w3.org/2003/01/geo/wgs84_pos#lat' &&
+                loc.object.datatype === 'http://www.w3.org/2001/XMLSchema#decimal') {
+                latitude = parseFloat(loc.object.value);
+            } else if (loc.predicate.value === 'http://www.w3.org/2003/01/geo/wgs84_pos#long' &&
+                loc.object.datatype === 'http://www.w3.org/2001/XMLSchema#decimal') {
+                longitude = parseFloat(loc.object.value);
+            }
+
+            if (latitude !== null && longitude !== null) {
+                address = await getAddress(latitude, longitude);
+                const key = `${latitude}-${longitude}`;
                 if (!uniqueCoords.has(key)) {
-                    // If not, add the coordinates to the set
                     uniqueCoords.add(key);
-                    // Push the coordinates and address to the coords array
-                    coords.push({ cor: [lat, long], add: address });
+                    coords.push({ cor: [latitude, longitude], add: address });
+                }
+                latitude = null;
+                longitude = null;
+            }
+        }
+        setCoordinates(coords);
+    } catch (error) {
+        console.error('Error:', error);
+    } finally {
+        setLoading(false);
+    }
+};
+
+
+    const handleButtonClick = async () => {
+        try {
+            setLoading(true);
+            const response = await fetch(`${API_ENDPOINT}/api`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sparqlQuery, fusekiUrl: selectedUrl }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch coordinates');
+            }
+
+            const responseData = await response.json();
+            setResponse(responseData);
+
+            const coords = [];
+            const uniqueCoords = new Set();
+            let latitude = null;
+            let longitude = null;
+            let address = null;
+
+            for (const loc of responseData.results.bindings) {
+                if (loc.predicate.value === 'http://www.w3.org/2003/01/geo/wgs84_pos#lat' &&
+                    loc.object.datatype === 'http://www.w3.org/2001/XMLSchema#decimal') {
+                    latitude = parseFloat(loc.object.value);
+                } else if (loc.predicate.value === 'http://www.w3.org/2003/01/geo/wgs84_pos#long' &&
+                    loc.object.datatype === 'http://www.w3.org/2001/XMLSchema#decimal') {
+                    longitude = parseFloat(loc.object.value);
+                }
+
+                if (latitude !== null && longitude !== null) {
+                    address = await getAddress(latitude, longitude);
+                    const key = `${latitude}-${longitude}`;
+                    if (!uniqueCoords.has(key)) {
+                        uniqueCoords.add(key);
+                        coords.push({ cor: [latitude, longitude], add: address });
+                    }
+                    latitude = null;
+                    longitude = null;
                 }
             }
             setCoordinates(coords);
         } catch (error) {
             console.error('Error:', error);
         } finally {
-            setLoading(false); // Stop loading
+            setLoading(false);
         }
     };
 
@@ -113,15 +246,35 @@ const SparqlEndpoint = () => {
                     </Button>
                 </CardContent>
             </Card>
+
+            {response && response.results.bindings.length > 0 && (
+                <Card style={{ marginTop: '20px' }}>
+                    <CardContent>
+                        <Typography variant="h6">Response Table</Typography>
+                        <ResponseTable
+                            response={response}
+                            onPredicateClick={handlePredicateClick}
+                            onObjectClick={handleObjectClick}
+                        />
+                    </CardContent>
+                </Card>
+            )}
+
             {coordinates.length > 0 && (
-                <div style={{ marginTop: '20px' }}>
-                    <Typography variant="h6">Location Map</Typography>
-                    <Card style={{ marginTop: '20px' }}>
-                        <CardContent>
-                            <LeafletMap coordinates={coordinates} />
-                        </CardContent>
-                    </Card>
-                </div>
+                <Card style={{ marginTop: '20px' }}>
+                    <CardContent>
+                        <Typography variant="h6">Location Map</Typography>
+                        <LeafletMap coordinates={coordinates} />
+                    </CardContent>
+                </Card>
+            )}
+
+            {dialogContent.length > 0 && (
+                <PredicateDialog
+                    open={dialogOpen}
+                    handleClose={() => setDialogOpen(false)}
+                    response={dialogContent} // Pass dialogContent as response prop
+                />
             )}
         </Container>
     );

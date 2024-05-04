@@ -42,9 +42,9 @@ const LeafletMap = ({ coordinates }) => {
 
         // Iterate over the array of coordinates and create markers with popups
         coordinates.forEach(coord => {
-            console.log(coord)
+            //    console.log(coord)
             const marker = L.marker(coord.cor).addTo(mapRef.current);
-            marker.bindPopup(coord.add);
+            marker.bindPopup("<h3>" + coord.add + "</h3>");
         });
     }, [coordinates]);
 
