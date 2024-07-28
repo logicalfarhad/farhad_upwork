@@ -1,21 +1,29 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 import markerIcon from "../../node_modules/leaflet/dist/images/marker-icon.png";
+
+// Set the default icon for markers
 L.Marker.prototype.setIcon(L.icon({
     iconUrl: markerIcon
-}))
+}));
+
 const LeafletMap = ({ coordinates }) => {
     const mapRef = useRef(null);
+    const markersLayerRef = useRef(null);
+
     useEffect(() => {
+        // Initialize the map only once
         if (!mapRef.current) {
-            // Create a map instance
             mapRef.current = L.map('leaflet-map').setView([51.481312, -3.180500], 13);
 
-            // Add a tile layer (OpenStreetMap tiles)
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(mapRef.current);
+
+            // Initialize a layer group for markers and polygons
+            markersLayerRef.current = L.layerGroup().addTo(mapRef.current);
         }
 
         return () => {
@@ -31,31 +39,35 @@ const LeafletMap = ({ coordinates }) => {
         document.head.appendChild(link);
     }, []);
 
-
     useEffect(() => {
-        // Clear existing markers and add new ones when the coordinates change
-        mapRef.current.eachLayer(layer => {
-            if (layer instanceof L.Marker) {
-                layer.remove();
-            }
-        });
+        // Clear existing markers and polygons
+        markersLayerRef.current.clearLayers();
 
         // Iterate over the array of coordinates and create markers with popups
         coordinates.forEach(coord => {
-            //    console.log(coord)
-            const marker = L.marker(coord.cor).addTo(mapRef.current);
-            //L.polygon(coord.vertices).addTo(mapRef.current);
-            var polyline = L.polygon(coord.vertices, { "bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.9, "smoothFactor": 1.0, "stroke": true, "weight": 3 }).addTo(mapRef.current);
+            const marker = L.marker(coord.cor).addTo(markersLayerRef.current);
 
-            // zoom the map to the polyline
-            mapRef.current.fitBounds(polyline.getBounds());
+            const polygon = L.polygon(coord.vertices, {
+                color: "red",
+                fillColor: "red",
+                fillOpacity: 0.2,
+                weight: 3
+            }).addTo(markersLayerRef.current);
+
+            // Adjust the map view to fit the bounds of the polygon
+            mapRef.current.fitBounds(polygon.getBounds());
             marker.bindPopup("<h3>" + coord.add + "</h3>");
         });
     }, [coordinates]);
 
     return (
-        <div id="leaflet-map" style={{ height: "400px" }} >
-        </div>
+        <div id="leaflet-map" style={{
+            position: 'relative',
+            width: '100.0%',
+            height: '400px',
+            left: '0',
+            top: '0'
+        }} />
     );
 };
 

@@ -68,7 +68,7 @@ const SparqlEndpoint = () => {
 
     const getCells = async (latitude, longitude) => {
         try {
-            const response = await fetch(`${API_ENDPOINT}/s2cells?lat=${latitude}&lng=${longitude}&level=9`);
+            const response = await fetch(`${API_ENDPOINT}/s2cells?lat=${latitude}&lng=${longitude}&level=13`);
             if (!response.ok) {
                 throw new Error('Failed to fetch CellIds');
             }

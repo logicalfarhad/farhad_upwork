@@ -45,7 +45,7 @@ async def execute_sparql_query(request_body: QueryRequest):
     sparql_query = request_body.sparqlQuery
     fuseki_url = request_body.fusekiUrl
     fuseki_base_url, fuseki_username, fuseki_password = get_fuseki_details()
-    sparql = SPARQLWrapper(fuseki_base_url+fuseki_url+"/query")
+    sparql = SPARQLWrapper(fuseki_base_url + fuseki_url + "/query")
     sparql.setQuery(sparql_query)
     sparql.setReturnFormat(JSON)
 
@@ -74,14 +74,13 @@ async def get_datasets():
 
         if response.status_code == 200:
             datasets_info = response.json()
-            datasets = datasets_info['datasets']
-            dataset_names = [dataset['ds.name'] for dataset in datasets]
+            datasets = datasets_info.get('datasets', [])
+            dataset_names = [dataset.get('ds.name') for dataset in datasets]
             return dataset_names
         else:
             raise HTTPException(status_code=response.status_code, detail="Failed to retrieve datasets")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving datasets: {e}")
-
 
 @app.get("/s2cells")
 def get_s2_cells(lat: float, lng: float, level: int):
@@ -89,13 +88,20 @@ def get_s2_cells(lat: float, lng: float, level: int):
     cell_id = CellId.from_lat_lng(lat_lng).parent(level)
     cell = Cell(cell_id)
 
+    # Generate coordinates adjusted by 0.1 degrees
+    cell_coordinates = [
+        (lat + 0.1, lng),
+        (lat, lng + 0.1),
+        (lat - 0.1, lng),
+        (lat, lng - 0.1)
+    ]
+
     vertices = []
     for i in range(4):
         vertex = LatLng.from_point(cell.get_vertex(i))
         vertices.append((vertex.lat().degrees, vertex.lng().degrees))
 
-    return vertices
-
+    return cell_coordinates
 
 if __name__ == "__main__":
     # Run the app using uvicorn
