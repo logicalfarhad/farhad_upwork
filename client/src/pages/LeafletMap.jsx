@@ -44,6 +44,11 @@ const LeafletMap = ({ coordinates }) => {
         coordinates.forEach(coord => {
             //    console.log(coord)
             const marker = L.marker(coord.cor).addTo(mapRef.current);
+            //L.polygon(coord.vertices).addTo(mapRef.current);
+            var polyline = L.polygon(coord.vertices, { "bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 0.9, "smoothFactor": 1.0, "stroke": true, "weight": 3 }).addTo(mapRef.current);
+
+            // zoom the map to the polyline
+            mapRef.current.fitBounds(polyline.getBounds());
             marker.bindPopup("<h3>" + coord.add + "</h3>");
         });
     }, [coordinates]);
