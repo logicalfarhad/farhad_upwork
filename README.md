@@ -40,7 +40,7 @@ This guide will walk you through the process of setting up Node.js 14, creating 
 4. **Install FastAPI and Uvicorn**:
    - With the virtual environment activated, install FastAPI and Uvicorn using pip:
      ```
-     pip install fastapi uvicorn pydantic SPARQLWrapper python-dotenv
+     pip install fastapi uvicorn pydantic SPARQLWrapper python-dotenv s2sphere
      ```
 
 5. **Run the FastAPI Server**:
