@@ -46,7 +46,7 @@ This guide will walk you through the process of setting up Node.js 14, creating 
 5. **Run the FastAPI Server**:
    - With your virtual environment activated and inside the chosen folder, run the following command:
      ```
-     uvicorn main:app --reload --port 5000
+     uvicorn main:app --reload --port 8000
      ```
    - This command tells Uvicorn to run your FastAPI application (`main.py`) with automatic reloading enabled on port 8000.
 
